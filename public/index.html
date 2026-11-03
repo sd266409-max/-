@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>3D 낚시 게임</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+    
+    #ui {
+      position: absolute; top: 12px; left: 12px;
+      color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.7);
+      z-index: 10; pointer-events: none;
+    }
+    #ui h1 { font-size: 18px; margin-bottom: 4px; }
+    #ui p { font-size: 13px; opacity: 0.9; line-height: 1.4; }
+    #moneyDisplay {
+      position: absolute; top: 12px; right: 14px;
+      color: #ffd700; font-size: 18px; font-weight: bold;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 10;
+    }
+
+    #status {
+      position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
+      color: #fff; font-size: 17px; font-weight: bold;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8); z-index: 10;
+      text-align: center; width: 92%; pointer-events: none;
+    }
+
+    #tension-bar {
+      position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+      width: 260px; height: 13px; background: rgba(0,0,0,0.5);
+      border-radius: 7px; overflow: hidden; display: none; z-index: 10;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    #tension-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #4caf50, #ffeb3b, #f44336);
+    }
+
+    #controls {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 8px; z-index: 15; flex-wrap: wrap; justify-content: center;
+    }
+
+    button {
+      padding: 10px 16px; font-size: 13px; font-weight: bold;
+      border: none; border-radius: 10px; cursor: pointer;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.3); min-width: 90px;
+      user-select: none; -webkit-user-select: none; transition: 0.15s;
+    }
+    button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+    button:disabled { background: #555 !important; color: #999 !important; box-shadow: none; cursor: not-allowed; }
+
+    #castBtn { background: linear-gradient(to bottom, #4CAF50, #388E3C); color: white; }
+    #reelBtn { background: linear-gradient(to bottom, #2196F3, #1976D2); color: white; }
+    #reelBtn.holding { background: linear-gradient(to bottom, #FF9800, #F57C00); }
+    #invBtn { background: linear-gradient(to bottom, #00BCD4, #0097A7); color: white; }
+    #shopBtn { background: linear-gradient(to bottom, #FF9800, #F57C00); color: white; }
+    #customBtn { background: linear-gradient(to bottom, #9C27B0, #7B1FA2); color: white; }
+
+    .panel {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center;
+      z-index: 50;
+    }
+    .panel-box {
+      background: linear-gradient(145deg, #1a2a3a, #0d1b2a);
+      border-radius: 18px; padding: 22px; color: white;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6); max-width: 92%;
+      animation: popIn 0.3s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.75); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    #catchBox { border: 3px solid #4fc3f7; text-align: center; min-width: 280px; }
+    #fishImage {
+      width: 110px; height: 75px; margin: 0 auto 12px;
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 48px; background: rgba(255,255,255,0.1);
+    }
+    #fishName { font-size: 26px; font-weight: bold; margin-bottom: 4px; }
+    #fishRarity { font-size: 15px; margin-bottom: 8px; padding: 3px 12px; border-radius: 20px; display: inline-block; }
+    #fishDesc { font-size: 14px; opacity: 0.9; margin-bottom: 6px; }
+    #fishSize { font-size: 13px; color: #81d4fa; margin-bottom: 14px; }
+    #catchButtons { display: flex; gap: 10px; justify-content: center; }
+    #sellNowBtn { background: #ff9800; color: white; }
+    #keepBtn { background: #4CAF50; color: white; }
+
+    .list-box { width: 360px; max-height: 82vh; overflow-y: auto; }
+    .list-box h2 { text-align: center; margin-bottom: 6px; }
+    .list-money { text-align: center; color: #ffd700; margin-bottom: 10px; font-size: 15px; }
+
+    .tab-btns { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab-btn {
+      flex: 1; padding: 8px; font-size: 13px; border-radius: 8px;
+      background: #37474f; color: #ccc; box-shadow: none; min-width: auto;
+    }
+    .tab-btn.active { background: #ff9800; color: white; }
+
+    .item-list { max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
+    .inv-item, .rod-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255,255,255,0.08); border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 8px;
+    }
+    .inv-item-left, .rod-left { display: flex; align-items: center; gap: 10px; }
+    .inv-emoji, .rod-icon { font-size: 26px; }
+    .inv-info, .rod-info { line-height: 1.3; }
+    .inv-name, .rod-name { font-weight: bold; font-size: 14px; }
+    .inv-meta, .rod-meta { font-size: 12px; opacity: 0.85; }
+    .sell-one-btn, .buy-btn {
+      background: #ff9800; color: white; padding: 6px 11px;
+      font-size: 12px; min-width: auto; border-radius: 8px;
+    }
+    .buy-btn.owned { background: #4caf50; }
+    .buy-btn:disabled { background: #555; }
+
+    .full-btn { width: 100%; margin-bottom: 8px; }
+    #sellAllInv, #sellAllBtn { background: #e65100; color: white; }
+    #closeInv, #closeShop { background: #546e7a; color: white; }
+
+    #customBox { border: 2px solid #9c27b0; width: 300px; }
+    #customBox h2 { text-align: center; margin-bottom: 16px; }
+    .custom-row { margin-bottom: 14px; }
+    .custom-row label { display: block; margin-bottom: 6px; font-size: 13px; }
+    .color-options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .color-btn {
+      width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer;
+    }
+    .color-btn.selected { border-color: #fff; transform: scale(1.12); }
+    #closeCustom { width: 100%; background: #9c27b0; color: white; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>🎣 3D 낚시 게임</h1>
+    <p>WASD 이동 · 드래그 시점<br>캐스팅 / 릴 / 인벤 / 상점 / 꾸미기</p>
+  </div>
+  <div id="moneyDisplay">💰 0 G</div>
+
+  <div id="status">상점에서 낚싯대를 구매할 수 있습니다</div>
+  <div id="tension-bar"><div id="tension-fill"></div></div>
+
+  <div id="controls">
+    <button id="castBtn">🎣 캐스팅</button>
+    <button id="reelBtn" disabled>🔄 릴</button>
+    <button id="invBtn">🎒 인벤</button>
+    <button id="shopBtn">🏪 상점</button>
+    <button id="customBtn">🎨 꾸미기</button>
+  </div>
+
+  <div id="catchPanel" class="panel">
+    <div id="catchBox" class="panel-box">
+      <div id="fishImage">🐟</div>
+      <div id="fishName">물고기</div>
+      <div id="fishRarity">일반</div>
+      <div id="fishDesc">설명</div>
+      <div id="fishSize">크기: 30cm</div>
+      <div id="catchButtons">
+        <button id="sellNowBtn">💰 바로 판매</button>
+        <button id="keepBtn">🎒 보관하기</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="invPanel" class="panel">
+    <div class="panel-box list-box" style="border:3px solid #00bcd4;">
+      <h2 style="color:#4dd0e1;">🎒 인벤토리</h2>
+      <div class="list-money" id="invMoney">현재 골드: 0 G</div>
+      <div class="item-list" id="invList"></div>
+      <button id="sellAllInv" class="full-btn">전부 판매</button>
+      <button id="closeInv" class="full-btn">닫기</button>
+    </div>
+  </div>
+
+  <div id="shopPanel" class="panel">
+    <div class="panel-box list-box" style="border:3px solid #ff9800;">
+      <h2 style="color:#ffb74d;">🏪 상점</h2>
+      <div class="list-money" id="shopMoney">현재 골드: 0 G</div>
+      
+      <div class="tab-btns">
+        <button class="tab-btn active" id="tabSell">물고기 판매</button>
+        <button class="tab-btn" id="tabRod">낚싯대 구매</button>
+      </div>
+
+      <div id="sellSection">
+        <div class="item-list" id="shopList"></div>
+        <button id="sellAllBtn" class="full-btn">전부 판매</button>
+      </div>
+
+      <div id="rodSection" style="display:none;">
+        <div class="item-list" id="rodList"></div>
+      </div>
+
+      <button id="closeShop" class="full-btn">닫기</button>
+    </div>
+  </div>
+
+  <div id="customPanel" class="panel">
+    <div id="customBox" class="panel-box">
+      <h2>🎨 캐릭터 꾸미기</h2>
+      <div class="custom-row">
+        <label>옷 색상</label>
+        <div class="color-options" id="bodyColors"></div>
+      </div>
+      <div class="custom-row">
+        <label>모자 색상</label>
+        <div class="color-options" id="hatColors"></div>
+      </div>
+      <div class="custom-row">
+        <label>피부색</label>
+        <div class="color-options" id="skinColors"></div>
+      </div>
+      <button id="closeCustom">완료</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Socket.IO 연동 (동일 도메인 자동 접속)
+    const socket = io();
+
+    const fishDB = [
+      { name: "붕어", rarity: "일반", rarityColor: "#bdbdbd", emoji: "🐟", color: 0xff9800, desc: "흔하디 흔한 붕어.", size: [18,28], price: [12,25] },
+      { name: "잉어", rarity: "일반", rarityColor: "#bdbdbd", emoji: "🐠", color: 0xff5722, desc: "힘이 좋은 잉어.", size: [30,45], price: [18,35] },
+      { name: "송어", rarity: "고급", rarityColor: "#4caf50", emoji: "🐟", color: 0x4caf50, desc: "맑은 물의 송어.", size: [25,38], price: [55,80] },
+      { name: "농어", rarity: "고급", rarityColor: "#4caf50", emoji: "🐠", color: 0x2196f3, desc: "바다의 사냥꾼.", size: [35,55], price: [60,95] },
+      { name: "참돔", rarity: "희귀", rarityColor: "#2196f3", emoji: "🐡", color: 0xf44336, desc: "붉은 빛의 고급 어종.", size: [40,60], price: [160,240] },
+      { name: "방어", rarity: "희귀", rarityColor: "#2196f3", emoji: "🐟", color: 0xffeb3b, desc: "겨울 바다의 왕.", size: [50,80], price: [180,280] },
+      { name: "연어", rarity: "희귀", rarityColor: "#2196f3", emoji: "🍣", color: 0xff8a65, desc: "회귀하는 연어.", size: [45,70], price: [150,230] },
+      { name: "황금잉어", rarity: "전설", rarityColor: "#ffc107", emoji: "✨", color: 0xffd700, desc: "전설의 황금잉어!", size: [40,65], price: [600,900] },
+      { name: "심해의 괴물", rarity: "전설", rarityColor: "#ffc107", emoji: "🦑", color: 0x7b1fa2, desc: "깊은 곳의 존재...", size: [80,120], price: [800,1200] },
+      { name: "낡은 장화", rarity: "일반", rarityColor: "#78909c", emoji: "👢", color: 0x5d4037, desc: "누군가의 장화.", size: [20,25], price: [1,3] }
+    ];
+
+    const rodDB = [
+      { id: "basic", name: "기본 낚싯대", icon: "🎣", price: 0, color: 0x222222, castBonus: 0, tensionBonus: 0, desc: "처음 주는 기본 낚싯대" },
+      { id: "strong", name: "강화 낚싯대", icon: "🎣", price: 120, color: 0x1565c0, castBonus: 3, tensionBonus: 8, desc: "캐스팅 거리 + 텐션 저항 증가" },
+      { id: "pro", name: "전문가 낚싯대", icon: "🎣", price: 350, color: 0x6a1b9a, castBonus: 6, tensionBonus: 15, desc: "멀리 던지고 줄이 잘 안 끊김" },
+      { id: "legend", name: "전설의 낚싯대", icon: "✨", price: 900, color: 0xffd700, castBonus: 10, tensionBonus: 25, desc: "최고의 성능. 황금빛 자랑" }
+    ];
+
+    let gold = 50;
+    let inventory = [];
+    let pendingFish = null;
+    let currentRodId = "basic";
+    let ownedRods = new Set(["basic"]);
+
+    function getRodBonus() {
+      return rodDB.find(r => r.id === currentRodId) || rodDB[0];
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 40, 180);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+    sun.position.set(30, 50, 20);
+    scene.add(sun);
+
+    const waterGeo = new THREE.PlaneGeometry(300, 300, 32, 32);
+    const water = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x1a6b9a, transparent: true, opacity: 0.85, roughness: 0.3 }));
+    water.rotation.x = -Math.PI/2;
+    scene.add(water);
+
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const dockFloor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 14), woodMat);
+    dockFloor.position.set(0, 0.8, 1);
+    scene.add(dockFloor);
+    for (let i=-4; i<=4; i+=2) {
+      for (let j=-5; j<=5; j+=5) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.6, 8), woodMat);
+        post.position.set(i, 0.4, j+1);
+        scene.add(post);
+      }
+    }
+
+    const player = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2266cc });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.35, 0.9, 10), bodyMat);
+    body.position.y = 1.15; player.add(body);
+    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8), bodyMat);
+    shoulder.position.y = 1.55; shoulder.scale.y = 0.6; player.add(shoulder);
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), skinMat);
+    head.position.y = 1.95; player.add(head);
+    const hatMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.16, 12), hatMat);
+    hat.position.y = 2.2; player.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.04, 12), hatMat);
+    brim.position.y = 2.12; player.add(brim);
+
+    const rodGroup = new THREE.Group();
+    const rodMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    const rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.018, 2.8, 6), rodMat);
+    rodMesh.rotation.z = Math.PI/2.2; rodMesh.position.set(0.55, 0.3, -0.9); rodGroup.add(rodMesh);
+    rodGroup.position.set(0, 1.0, 0); player.add(rodGroup);
+    player.position.set(0, 0.8, 4);
+    scene.add(player);
+
+    const merchantGroup = new THREE.Group();
+    const merchant = new THREE.Group();
+    const mBody = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.38, 1.0, 10), new THREE.MeshStandardMaterial({ color: 0x6d4c41 }));
+    mBody.position.y = 1.2; merchant.add(mBody);
+    const mHead = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), new THREE.MeshStandardMaterial({ color: 0xffcc99 }));
+    mHead.position.y = 2.05; merchant.add(mHead);
+    const mHat = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.2, 12), new THREE.MeshStandardMaterial({ color: 0x3e2723 }));
+    mHat.position.y = 2.3; merchant.add(mHat);
+    const beard = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
+    beard.position.set(0, 1.85, 0.2); beard.scale.set(1, 0.7, 0.6); merchant.add(beard);
+    merchantGroup.add(merchant);
+
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+    [[-1.3,-1.1],[1.3,-1.1],[-1.3,1.1],[1.3,1.1]].forEach(([x,z]) => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 8), poleMat);
+      pole.position.set(x, 1.6, z); merchantGroup.add(pole);
+    });
+    const tentMat = new THREE.MeshStandardMaterial({ color: 0xd32f2f, side: THREE.DoubleSide, roughness: 0.9 });
+    const roof1 = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.4), tentMat);
+    roof1.rotation.x = -Math.PI/3.2; roof1.position.set(0, 2.9, -0.3); merchantGroup.add(roof1);
+    const roof2 = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.4), tentMat);
+    roof2.rotation.x = Math.PI/3.2; roof2.position.set(0, 2.9, 0.3); merchantGroup.add(roof2);
+    const sideMat = new THREE.MeshStandardMaterial({ color: 0xb71c1c, side: THREE.DoubleSide });
+    const side1 = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.8), sideMat);
+    side1.rotation.y = Math.PI/2; side1.position.set(-1.35, 1.7, 0); merchantGroup.add(side1);
+    const side2 = side1.clone(); side2.position.x = 1.35; merchantGroup.add(side2);
+    const table = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.9), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
+    table.position.set(0, 1.05, 1.3); merchantGroup.add(table);
+    [[-0.7,0.7],[0.7,0.7],[-0.7,-0.7],[0.7,-0.7]].forEach(([x,z]) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6), poleMat);
+      leg.position.set(x, 0.5, 1.3 + z*0.3); merchantGroup.add(leg);
+    });
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0x6d4c41 }));
+    crate.position.set(-0.5, 1.3, 1.3); merchantGroup.add(crate);
+    merchantGroup.position.set(3.5, 0.8, 1.8);
+    scene.add(merchantGroup);
+
+    let line = null, bobber = null;
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xdddddd });
+    const bobberGeo = new THREE.SphereGeometry(0.12, 10, 10);
+    const bobberMat = new THREE.MeshStandardMaterial({ color: 0xff2222 });
+
+    const fishes = [];
+    function createFish() {
+      const g = new THREE.Group();
+      const fb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0x4ecdc4 }));
+      fb.scale.set(1.5, 0.65, 0.45); g.add(fb);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.25, 6), fb.material);
+      tail.rotation.z = Math.PI/2; tail.position.x = -0.35; g.add(tail);
+      g.position.set((Math.random()-0.5)*50, -0.7, (Math.random()-0.5)*50-15);
+      g.userData = { speed: 0.015+Math.random()*0.025, angle: Math.random()*Math.PI*2 };
+      scene.add(g); fishes.push(g);
+    }
+    for (let i=0; i<14; i++) createFish();
+
+    let state = "ready";
+    let biteTimer=0, tension=0, fightProgress=0;
+    let currentFish=null;
+    let bobberTarget = new THREE.Vector3();
+    let isReeling=false;
+    const keys={};
+    let yaw=0, pitch=0.3;
+    let isDragging=false, lastX=0, lastY=0;
+
+    const statusEl = document.getElementById("status");
+    const moneyEl = document.getElementById("moneyDisplay");
+    const tensionBar = document.getElementById("tension-bar");
+    const tensionFill = document.getElementById("tension-fill");
+    const castBtn = document.getElementById("castBtn");
+    const reelBtn = document.getElementById("reelBtn");
+    const invBtn = document.getElementById("invBtn");
+    const shopBtn = document.getElementById("shopBtn");
+    const customBtn = document.getElementById("customBtn");
+    const catchPanel = document.getElementById("catchPanel");
+    const invPanel = document.getElementById("invPanel");
+    const shopPanel = document.getElementById("shopPanel");
+    const customPanel = document.getElementById("customPanel");
+
+    function updateMoney() {
+      moneyEl.textContent = `💰 ${gold} G`;
+      document.getElementById("invMoney").textContent = `현재 골드: ${gold} G`;
+      document.getElementById("shopMoney").textContent = `현재 골드: ${gold} G`;
+    }
+    updateMoney();
+
+    function applyRodVisual() {
+      const rod = getRodBonus();
+      rodMat.color.setHex(rod.color);
+    }
+
+    const bodyColors = [0x2266cc,0xe53935,0x43a047,0xfb8c00,0x8e24aa,0x00acc1,0x6d4c41,0x37474f];
+    const hatColors  = [0x333333,0xffffff,0xc62828,0x1565c0,0x2e7d32,0xf9a825,0x6a1b9a,0x4e342e];
+    const skinColors = [0xffcc99,0xffb74d,0xe0a070,0xc68642,0x8d5524,0xffe0b2];
+    function makeColorBtns(id, list, mat, idx=0) {
+      const box = document.getElementById(id);
+      box.innerHTML = "";
+      list.forEach((c,i) => {
+        const b = document.createElement("div");
+        b.className = "color-btn" + (i===idx ? " selected" : "");
+        b.style.background = "#" + c.toString(16).padStart(6,"0");
+        b.onclick = () => {
+          box.querySelectorAll(".color-btn").forEach(x=>x.classList.remove("selected"));
+          b.classList.add("selected");
+          mat.color.setHex(c);
+        };
+        box.appendChild(b);
+      });
+    }
+    makeColorBtns("bodyColors", bodyColors, bodyMat);
+    makeColorBtns("hatColors", hatColors, hatMat);
+    makeColorBtns("skinColors", skinColors, skinMat);
+
+    document.getElementById("tabSell").onclick = () => {
+      document.getElementById("tabSell").classList.add("active");
+      document.getElementById("tabRod").classList.remove("active");
+      document.getElementById("sellSection").style.display = "block";
+      document.getElementById("rodSection").style.display = "none";
+    };
+    document.getElementById("tabRod").onclick = () => {
+      document.getElementById("tabRod").classList.add("active");
+      document.getElementById("tabSell").classList.remove("active");
+      document.getElementById("sellSection").style.display = "none";
+      document.getElementById("rodSection").style.display = "block";
+      renderRodList();
+    };
+
+    customBtn.onclick = () => customPanel.style.display = "flex";
+    document.getElementById("closeCustom").onclick = () => customPanel.style.display = "none";
+    invBtn.onclick = () => openInventory();
+    document.getElementById("closeInv").onclick = () => invPanel.style.display = "none";
+    shopBtn.onclick = () => openShop();
+    document.getElementById("closeShop").onclick = () => shopPanel.style.display = "none";
+
+    document.getElementById("keepBtn").onclick = () => {
+      if (pendingFish) {
+        inventory.push(pendingFish);
+        pendingFish = null;
+        statusEl.textContent = "인벤토리에 보관했습니다!";
+      }
+      catchPanel.style.display = "none";
+      resetAfterCatch();
+    };
+    document.getElementById("sellNowBtn").onclick = () => {
+      if (pendingFish) {
+        gold += pendingFish.price;
+        updateMoney();
+        statusEl.textContent = `${pendingFish.data.name}을(를) ${pendingFish.price}G에 판매!`;
+        pendingFish = null;
+      }
+      catchPanel.style.display = "none";
+      resetAfterCatch();
+    };
+
+    function renderItemList(containerId) {
+      const list = document.getElementById(containerId);
+      list.innerHTML = "";
+      if (inventory.length === 0) {
+        list.innerHTML = `<div style="text-align:center;opacity:0.7;padding:24px;">보유한 물고기가 없습니다</div>`;
+        return;
+      }
+      inventory.forEach((item, idx) => {
+        const div = document.createElement("div");
+        div.className = "inv-item";
+        div.innerHTML = `
+          <div class="inv-item-left">
+            <div class="inv-emoji">${item.data.emoji}</div>
+            <div class="inv-info">
+              <div class="inv-name">${item.data.name}</div>
+              <div class="inv-meta">${item.size}cm · ${item.data.rarity} · ${item.price}G</div>
+            </div>
+          </div>
+          <button class="sell-one-btn" data-idx="${idx}">판매</button>
+        `;
+        list.appendChild(div);
+      });
+      list.querySelectorAll(".sell-one-btn").forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.dataset.idx);
+          const item = inventory[idx];
+          gold += item.price;
+          inventory.splice(idx, 1);
+          updateMoney();
+          if (containerId === "shopList") openShop(); else openInventory();
+          statusEl.textContent = `${item.data.name} 판매! (+${item.price}G)`;
+        };
+      });
+    }
+
+    function renderRodList() {
+      const list = document.getElementById("rodList");
+      list.innerHTML = "";
+      rodDB.forEach(rod => {
+        const owned = ownedRods.has(rod.id);
+        const equipped = currentRodId === rod.id;
+        const div = document.createElement("div");
+        div.className = "rod-item";
+        div.innerHTML = `
+          <div class="rod-left">
+            <div class="rod-icon">${rod.icon}</div>
+            <div class="rod-info">
+              <div class="rod-name">${rod.name} ${equipped ? "(장착중)" : ""}</div>
+              <div class="rod-meta">${rod.desc}</div>
+              <div class="rod-meta">가격: ${rod.price}G</div>
+            </div>
+          </div>
+          <button class="buy-btn ${owned ? "owned" : ""}" data-id="${rod.id}" ${owned && equipped ? "disabled" : ""}>
+            ${equipped ? "장착됨" : owned ? "장착" : rod.price + "G"}
+          </button>
+        `;
+        list.appendChild(div);
+      });
+
+      list.querySelectorAll(".buy-btn").forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          const rod = rodDB.find(r => r.id === id);
+          if (!rod) return;
+
+          if (ownedRods.has(id)) {
+            currentRodId = id;
+            applyRodVisual();
+            statusEl.textContent = `${rod.name} 장착!`;
+            renderRodList();
+          } else {
+            if (gold < rod.price) {
+              statusEl.textContent = "골드가 부족합니다!";
+              return;
+            }
+            gold -= rod.price;
+            ownedRods.add(id);
+            currentRodId = id;
+            applyRodVisual();
+            updateMoney();
+            statusEl.textContent = `${rod.name} 구매 및 장착!`;
+            renderRodList();
+          }
+        };
+      });
+    }
+
+    function openInventory() {
+      renderItemList("invList");
+      updateMoney();
+      invPanel.style.display = "flex";
+    }
+    function openShop() {
+      document.getElementById("tabSell").classList.add("active");
+      document.getElementById("tabRod").classList.remove("active");
+      document.getElementById("sellSection").style.display = "block";
+      document.getElementById("rodSection").style.display = "none";
+      renderItemList("shopList");
+      updateMoney();
+      shopPanel.style.display = "flex";
+    }
+
+    document.getElementById("sellAllInv").onclick = () => {
+      if (inventory.length === 0) return;
+      let total = 0;
+      inventory.forEach(i => total += i.price);
+      gold += total;
+      inventory = [];
+      updateMoney();
+      openInventory();
+      statusEl.textContent = `전부 판매! 총 ${total}G 획득`;
+    };
+    document.getElementById("sellAllBtn").onclick = () => {
+      if (inventory.length === 0) return;
+      let total = 0;
+      inventory.forEach(i => total += i.price);
+      gold += total;
+      inventory = [];
+      updateMoney();
+      openShop();
+      statusEl.textContent = `전부 판매! 총 ${total}G 획득`;
+    };
+
+    castBtn.onclick = (e) => { e.stopPropagation(); if (state==="ready") cast(); };
+    function startReel(e) {
+      e.preventDefault(); e.stopPropagation();
+      if (state==="bite"||state==="fighting") {
+        isReeling=true; reelBtn.classList.add("holding");
+        if (state==="bite") startFight();
+      }
+    }
+    function endReel(e){ e.preventDefault(); e.stopPropagation(); isReeling=false; reelBtn.classList.remove("holding"); }
+    reelBtn.addEventListener("mousedown", startReel);
+    reelBtn.addEventListener("mouseup", endReel);
+    reelBtn.addEventListener("mouseleave", endReel);
+    reelBtn.addEventListener("touchstart", startReel, {passive:false});
+    reelBtn.addEventListener("touchend", endReel);
+
+    function ptrDown(e) {
+      if (e.target.tagName==="BUTTON" || e.target.closest(".panel")) return;
+      isDragging=true;
+      lastX = e.touches ? e.touches[0].clientX : e.clientX;
+      lastY = e.touches ? e.touches[0].clientY : e.clientY;
+    }
+    function ptrMove(e) {
+      if (!isDragging) return;
+      const x = e.touches ? e.touches[0].clientX : e.clientX;
+      const y = e.touches ? e.touches[0].clientY : e.clientY;
+      yaw -= (x-lastX)*0.005;
+      pitch -= (y-lastY)*0.004;
+      pitch = Math.max(-0.15, Math.min(0.85, pitch));
+      lastX=x; lastY=y;
+      if (e.touches) e.preventDefault();
+    }
+    function ptrUp(){ isDragging=false; }
+    renderer.domElement.addEventListener("mousedown", ptrDown);
+    window.addEventListener("mousemove", ptrMove);
+    window.addEventListener("mouseup", ptrUp);
+    renderer.domElement.addEventListener("touchstart", ptrDown, {passive:false});
+    renderer.domElement.addEventListener("touchmove", ptrMove, {passive:false});
+    renderer.domElement.addEventListener("touchend", ptrUp);
+
+    document.addEventListener("keydown", e => {
+      keys[e.code]=true;
+      if (e.code==="Space" && (state==="bite"||state==="fighting")) {
+        isReeling=true; if (state==="bite") startFight();
+      }
+      if (e.code==="KeyR") resetGame();
+      if (e.code==="KeyI") openInventory();
+    });
+    document.addEventListener("keyup", e => {
+      keys[e.code]=false;
+      if (e.code==="Space") isReeling=false;
+    });
+
+    function updateButtons() {
+      castBtn.disabled = state !== "ready";
+      reelBtn.disabled = !(state==="bite" || state==="fighting");
+    }
+
+    function cast() {
+      if (state!=="ready") return;
+      state="casting"; updateButtons();
+      statusEl.textContent="캐스팅 중..."; statusEl.style.color="#fff";
+      if (bobber) scene.remove(bobber);
+      bobber = new THREE.Mesh(bobberGeo, bobberMat); scene.add(bobber);
+
+      const bonus = getRodBonus().castBonus;
+      const dir = new THREE.Vector3(0,0.2,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw).normalize();
+      const dist = 11 + Math.random()*7 + bonus;
+      const start = player.position.clone().add(new THREE.Vector3(0,1.9,0));
+      bobberTarget.set(player.position.x+dir.x*dist, 0.15, player.position.z+dir.z*dist);
+      if (line) scene.remove(line);
+      line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start.clone(), bobberTarget.clone()]), lineMat);
+      scene.add(line);
+      let t=0;
+      (function fly(){
+        t+=0.045;
+        if (t>=1) {
+          bobber.position.copy(bobberTarget);
+          state="waiting"; updateButtons();
+          statusEl.textContent="입질을 기다리는 중...";
+          biteTimer=2+Math.random()*4;
+          return;
+        }
+        bobber.position.lerpVectors(start, bobberTarget, t);
+        bobber.position.y += Math.sin(t*Math.PI)*2.8;
+        requestAnimationFrame(fly);
+      })();
+    }
+
+    function checkBite(dt) {
+      if (state!=="waiting") return;
+      biteTimer-=dt;
+      if (biteTimer<=0) {
+        state="bite"; updateButtons();
+        statusEl.textContent="입질이 왔다! 릴 감기를 누르세요!";
+        statusEl.style.color="#ffeb3b";
+        if (bobber) bobber.userData.baseY = bobber.position.y;
+      }
+    }
+
+    function startFight() {
+      state="fighting"; updateButtons();
+      tension=30; fightProgress=0;
+      tensionBar.style.display="block";
+      statusEl.textContent="릴을 감으세요!"; statusEl.style.color="#fff";
+      currentFish = fishes[Math.floor(Math.random()*fishes.length)];
+    }
+
+    function updateFight(dt) {
+      if (state!=="fighting") return;
+      const bonus = getRodBonus().tensionBonus;
+
+      if (isReeling||keys["Space"]) { 
+        tension -= (42 + bonus*0.3) * dt; 
+        fightProgress += (26 + bonus*0.2) * dt; 
+      } else {
+        tension += (28 - bonus*0.4) * dt;
+      }
+      tension += (Math.random()-0.45)*32*dt;
+      tension = Math.max(0,Math.min(100,tension));
+      fightProgress = Math.max(0,Math.min(100,fightProgress));
+      tensionFill.style.width = tension+"%";
+      if (fightProgress>=100) catchFish();
+      else if (tension>=100) failCatch();
+      if (currentFish&&bobber) {
+        currentFish.position.lerp(bobber.position,0.025);
+        currentFish.position.y=-0.25;
+      }
+    }
+
+    function catchFish() {
+      state="caught"; updateButtons();
+      tensionBar.style.display="none";
+
+      let fish;
+      const r=Math.random();
+      if (r<0.03) fish = fishDB.filter(f=>f.rarity==="전설")[Math.floor(Math.random()*2)];
+      else if (r<0.15) fish = fishDB.filter(f=>f.rarity==="희귀")[Math.floor(Math.random()*3)];
+      else if (r<0.40) fish = fishDB.filter(f=>f.rarity==="고급")[Math.floor(Math.random()*2)];
+      else fish = fishDB.filter(f=>f.rarity==="일반")[Math.floor(Math.random()*3)];
+      if (Math.random()<0.08) fish = fishDB[fishDB.length-1];
+
+      const size = Math.floor(fish.size[0] + Math.random()*(fish.size[1]-fish.size[0]));
+      const price = Math.floor(fish.price[0] + Math.random()*(fish.price[1]-fish.price[0]));
+
+      pendingFish = { data: fish, size: size, price: price };
+
+      document.getElementById("fishImage").textContent = fish.emoji;
+      document.getElementById("fishName").textContent = fish.name;
+      const rEl = document.getElementById("fishRarity");
+      rEl.textContent = fish.rarity;
+      rEl.style.background = fish.rarityColor;
+      document.getElementById("fishDesc").textContent = fish.desc;
+      document.getElementById("fishSize").textContent = `크기: ${size}cm | 가치: ${price}G`;
+
+      catchPanel.style.display = "flex";
+    }
+
+    function failCatch() {
+      state="ready"; updateButtons();
+      tensionBar.style.display="none";
+      statusEl.textContent="줄이 끊어졌습니다!"; statusEl.style.color="#f44336";
+      resetAfterCatch();
+    }
+
+    function resetAfterCatch() {
+      if (bobber) { scene.remove(bobber); bobber=null; }
+      if (line) { scene.remove(line); line=null; }
+      state="ready"; updateButtons();
+      isReeling=false; reelBtn.classList.remove("holding");
+    }
+
+    function resetGame() {
+      resetAfterCatch();
+      statusEl.textContent="캐스팅 대기 중"; statusEl.style.color="#fff";
+    }
+
+    function updatePlayerMovement(dt) {
+      const speed = 4.0 * dt;
+      let moved = false;
+
+      if (keys["KeyW"]) { player.position.z -= speed; moved = true; }
+      if (keys["KeyS"]) { player.position.z += speed; moved = true; }
+      if (keys["KeyA"]) { player.position.x -= speed; moved = true; }
+      if (keys["KeyD"]) { player.position.x += speed; moved = true; }
+
+      player.position.x = Math.max(-4.5, Math.min(4.5, player.position.x));
+      player.position.z = Math.max(-5.5, Math.min(7.5, player.position.z));
+
+      if (moved && socket.connected) {
+        socket.emit('playerMove', {
+          position: { x: player.position.x, y: player.position.y, z: player.position.z },
+          rotationY: yaw
+        });
+      }
+    }
+
+    let lastTime = performance.now();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      updatePlayerMovement(dt);
+
+      const t = now * 0.002;
+      const pos = waterGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const u = pos.getX(i);
+        const v = pos.getY(i);
+        pos.setZ(i, Math.sin(u * 0.2 + t) * 0.15 + Math.cos(v * 0.2 + t) * 0.15);
+      }
+      pos.needsUpdate = true;
+
+      fishes.forEach(f => {
+        f.position.x += Math.cos(f.userData.angle) * f.userData.speed;
+        f.position.z += Math.sin(f.userData.angle) * f.userData.speed;
+        f.rotation.y = -f.userData.angle;
+        if (Math.abs(f.position.x)>35 || Math.abs(f.position.z)>35) {
+          f.userData.angle += Math.PI;
+        }
+      });
+
+      checkBite(dt);
+      updateFight(dt);
+
+      if (state==="bite" && bobber) {
+        bobber.position.y = (bobber.userData.baseY || 0.15) + Math.sin(now * 0.03) * 0.12 - 0.08;
+      }
+
+      if (line && bobber) {
+        const p1 = player.position.clone().add(new THREE.Vector3(0.4, 1.8, -0.4).applyAxisAngle(new THREE.Vector3(0,1,0), yaw));
+        const p2 = bobber.position.clone();
+        line.geometry.setFromPoints([p1, p2]);
+      }
+
+      player.rotation.y = yaw;
+      const camDist = 5.5;
+      const cx = player.position.x + Math.sin(yaw) * camDist * Math.cos(pitch);
+      const cy = player.position.y + 1.8 + Math.sin(pitch) * camDist;
+      const cz = player.position.z + Math.cos(yaw) * camDist * Math.cos(pitch);
+      camera.position.set(cx, cy, cz);
+      camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z);
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    socket.on('connect', () => {
+      socket.emit('joinGame', { gold, currentRodId, position: player.position });
+    });
+
+    animate();
+  </script>
+</body>
+</html>
