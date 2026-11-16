@@ -1,0 +1,15 @@
+{
+  "name": "block-dragon-hunter-server",
+  "version": "1.0.0",
+  "description": "블록 드래곤 헌터 - 정적 파일 서버 + WebSocket 멀티플레이 서버",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
